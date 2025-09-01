@@ -56,14 +56,17 @@ async def oauth2callback(request: Request):
 
     return {"message": "Authorization complete! You can close this tab."}
 
-    created_event = service.events().insert(calendarId="primary", body=event).execute()
-    return {"message": "Event created!", "link": created_event.get("htmlLink")}
-
+class EventStructured(BaseModel):
+    title: str
+    start_datetime: str  # ISO 8601, e.g., "2025-09-11T09:00:00"
+    end_datetime: str    # ISO 8601, e.g., "2025-09-11T11:00:00"
+    location: str = ""
+    notes: str = ""
 # ----------------------------
 # Add simple event
 # ----------------------------
-@app.get("/add_event")
-def add_event():
+@app.post("/add_event")
+def add_event(event: EventStructured):
     if not os.path.exists(TOKEN_FILE):
         return {"error": "Not authorized. Go to /login first."}
 
@@ -71,16 +74,69 @@ def add_event():
     service = build("calendar", "v3", credentials=creds)
 
     event = {
-        "summary": "Test Event",
-        "location": "Nashville",
-        "description": "This is a test event created by FastAPI.",
-        "start": {"dateTime": "2025-09-01T10:00:00", "timeZone": "America/Chicago"},
-        "end": {"dateTime": "2025-09-01T11:00:00", "timeZone": "America/Chicago"},
+        "summary": event.title,
+        "location": event.location,
+        "description": event.notes,
+        "start": {"dateTime": event.start_datetime, "timeZone": "America/Chicago"},
+        "end": {"dateTime": event.end_datetime, "timeZone": "America/Chicago"}
     }
-
     created_event = service.events().insert(calendarId="primary", body=event).execute()
     return {"message": "Event created!", "link": created_event.get("htmlLink")}
-git 
+
+def parse_event_string(event_str: str, timezone="America/Chicago"):
+    """
+    Parse an event string into structured fields for Google Calendar.
+    
+    Format (all required): title, date, time, location, notes
+    Example: "Meeting with A, Sep 11, 9 - 11 AM, Office, Bring documents"
+    """
+    parts = [p.strip() for p in event_str.split(",")]
+
+    if len(parts) != 5:
+        raise ValueError("Event string must have exactly 5 parts: title, date, time, location, notes")
+
+    title, date_str, time_str, location, notes = parts
+
+    # Parse times
+    if "-" not in time_str:
+        raise ValueError("Time must be in format 'start - end'")
+    start_str, end_str = [t.strip() for t in time_str.split("-")]
+
+    start_dt = dateparser.parse(f"{date_str} {start_str}")
+    end_dt = dateparser.parse(f"{date_str} {end_str}")
+
+    if not start_dt or not end_dt:
+        raise ValueError("Could not parse date/time")
+
+    return {
+        "summary": title,
+        "location": location,
+        "description": notes,
+        "start": {"dateTime": start_dt.isoformat(), "timeZone": timezone},
+        "end": {"dateTime": end_dt.isoformat(), "timeZone": timezone}
+    }
+
+
+class EventText(BaseModel):
+    event_text: str
+
+
+@app.post("/add_event_text")
+async def add_event_text(event: EventText):
+    if not os.path.exists(TOKEN_FILE):
+        return {"error": "Not authorized. Go to /login first."}
+
+    creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+    service = build("calendar", "v3", credentials=creds)
+
+    try:
+        new_event = parse_event_string(event.event_text)
+    except Exception as e:
+        return {"error": str(e)}
+
+    created = service.events().insert(calendarId="primary", body=new_event).execute()
+    return {"message": "Event created!", "link": created.get("htmlLink")}
+
 # ----------------------------
 # Event parsing & creation
 # ----------------------------
