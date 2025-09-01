@@ -1,0 +1,21 @@
+{
+    "manifest_version": 3,
+    "name": "Auto Event Creator",
+    "version": "1.0",
+    "description": "Highlight syllabus text and add it to Google Calendar.",
+    "permissions": ["contextMenus", "activeTab", "scripting"],
+    "action": {
+      "default_popup": "popup.html",
+      "default_title": "Add event"
+    },
+    "background": {
+      "service_worker": "background.js"
+    },
+    "content_scripts": [
+      {
+        "matches": ["<all_urls>"],
+        "js": ["content.js"]
+      }
+    ]
+  }
+  
