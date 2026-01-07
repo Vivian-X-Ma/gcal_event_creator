@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 500px;
+      margin: 40px auto;
+      padding: 20px;
+    }
+    
+    h1 {
+      color: #333;
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+    
+    .description {
+      color: #666;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    
+    label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #333;
+    }
+    
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+      font-family: monospace;
+    }
+    
+    button {
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      padding: 10px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-top: 16px;
+    }
+    
+    button:hover {
+      background-color: #3367d6;
+    }
+    
+    .status {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 4px;
+      display: none;
+    }
+    
+    .status.success {
+      background-color: #d4edda;
+      color: #155724;
+      display: block;
+    }
+    
+    .status.error {
+      background-color: #f8d7da;
+      color: #721c24;
+      display: block;
+    }
+    
+    .help-link {
+      margin-top: 12px;
+      font-size: 13px;
+    }
+    
+    .help-link a {
+      color: #4285f4;
+      text-decoration: none;
+    }
+    
+    .help-link a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <h1>Syllabus to Calendar Settings</h1>
+  
+  <div class="description">
+    Enter your Groq API key to enable syllabus parsing. The key is stored locally and never shared.
+  </div>
+  
+  <label for="apiKey">Groq API Key:</label>
+  <input type="password" id="apiKey" placeholder="gsk_...">
+  
+  <div class="help-link">
+    Don't have an API Key? <a href="https://console.groq.com" target="_blank">Get one free at console.groq.com</a> 
+  </div>
+  
+  <button id="saveBtn">Save Settings</button>
+  
+  <div id="status" class="status"></div>
+  
+  <script src="options.js"></script>
+</body>
+</html>
