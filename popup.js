@@ -288,6 +288,8 @@ async function getGoogleAuthToken() {
 // Add event to Google Calendar
 async function addEventToGoogleCalendar(token, event) {
     // Map event types to Google Calendar color IDs
+
+    //TODO: adjust here
     const colorMap = {
         homework: "2", // light green
         quiz: "6", // orange
@@ -299,6 +301,7 @@ async function addEventToGoogleCalendar(token, event) {
         description: `${event.className} - ${event.eventType}${
             event.description ? "\n\n" + event.description : ""
         }`,
+        //TODO: allow user to adjust if they want a full day or a time and due date here, or offer double functionality
         start: {
             // setting a full day event, which i prefer for my assignments
             date: event.dueDate.split('T')[0],  // Just "2024-09-15"
@@ -319,6 +322,7 @@ async function addEventToGoogleCalendar(token, event) {
             overrides: [
                 { method: "popup", minutes: 30 },
                 { method: "popup", minutes: 1440 },
+                //TODO: Right now this is manually set, add this to user options
                 // Change this number to adjust notification time manually
             ],
         },
