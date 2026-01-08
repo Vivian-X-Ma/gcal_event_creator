@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Syllabus to Calendar",
-  "version": "1.0",
+  "version": "1.01",
   "description": "Parse syllabus information and automatically add events to Google Calendar",
   "permissions": [
     "identity",
@@ -11,23 +11,13 @@
     "https://www.googleapis.com/*"
   ],
   "action": {
-    "default_popup": "popup.html",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
+    "default_popup": "popup.html"
   },
   "oauth2": {
-    "client_id": "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com",
+    "client_id": "972517112162-8rdsc50dbreh6da0vlf1hcmvhj73ac6f.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/calendar.events"
     ]
   },
-  "options_page": "options.html",
-  "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
-  }
+  "options_page": "options.html"
 }
