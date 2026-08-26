@@ -81,7 +81,7 @@ updateBtn.addEventListener("click", async () => {
         const updatedEvents = await updateEventsWithChat(
             syllabusInput.value,
             corrections,
-            parsedEvents
+            parsedEvents,
         );
         parsedEvents = updatedEvents;
 
@@ -118,7 +118,7 @@ addToCalendarBtn.addEventListener("click", async () => {
 
         showStatus(
             `Successfully added ${parsedEvents.length} events to Google Calendar!`,
-            "success"
+            "success",
         );
 
         // Clear form after success
@@ -145,7 +145,7 @@ async function parseSyllabusWithGroq(syllabusText) {
 
     if (!apiKey) {
         throw new Error(
-            "Groq API key not set. Please add it in extension options."
+            "Groq API key not set. Please add it in extension options.",
         );
     }
 
@@ -158,7 +158,7 @@ async function parseSyllabusWithGroq(syllabusText) {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                model: "llama-3.3-70b-versatile",
+                model: "llama-3.1-70b-versatile",
                 messages: [
                     {
                         role: "system",
@@ -183,7 +183,7 @@ Return ONLY valid JSON with an "events" array, no markdown formatting or explana
                 temperature: 0.1,
                 response_format: { type: "json_object" },
             }),
-        }
+        },
     );
 
     if (!response.ok) {
@@ -200,7 +200,7 @@ Return ONLY valid JSON with an "events" array, no markdown formatting or explana
 async function updateEventsWithChat(
     originalSyllabus,
     corrections,
-    currentEvents
+    currentEvents,
 ) {
     const result = await chrome.storage.sync.get(["groqApiKey"]);
     const apiKey = result.groqApiKey;
@@ -214,7 +214,7 @@ async function updateEventsWithChat(
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                model: "llama-3.3-70b-versatile",
+                model: "openai/gpt-oss-120b",
                 messages: [
                     {
                         role: "system",
@@ -227,14 +227,14 @@ Return ONLY valid JSON with an "events" array in the same format as before.`,
                         content: `Original syllabus:\n${originalSyllabus}\n\nCurrent events:\n${JSON.stringify(
                             currentEvents,
                             null,
-                            2
+                            2,
                         )}\n\nUser corrections:\n${corrections}\n\nPlease update the events based on these corrections.`,
                     },
                 ],
                 temperature: 0.1,
                 response_format: { type: "json_object" },
             }),
-        }
+        },
     );
 
     const data = await response.json();
@@ -304,14 +304,14 @@ async function addEventToGoogleCalendar(token, event) {
         //TODO: allow user to adjust if they want a full day or a time and due date here, or offer double functionality
         start: {
             // setting a full day event, which i prefer for my assignments
-            date: event.dueDate.split('T')[0],  // Just "2024-09-15"
+            date: event.dueDate.split("T")[0], // Just "2024-09-15"
 
             //setting specific time and due date
             // dateTime: event.startDate,
             // timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         },
         end: {
-            date: event.dueDate.split('T')[0],  // Just "2024-09-15"
+            date: event.dueDate.split("T")[0], // Just "2024-09-15"
 
             // dateTime: event.dueDate,
             // timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -337,13 +337,13 @@ async function addEventToGoogleCalendar(token, event) {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify(calendarEvent),
-        }
+        },
     );
 
     if (!response.ok) {
         const error = await response.json();
         throw new Error(
-            error.error.message || "Failed to add event to calendar"
+            error.error.message || "Failed to add event to calendar",
         );
     }
 
