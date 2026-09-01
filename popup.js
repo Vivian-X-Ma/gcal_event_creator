@@ -1,5 +1,9 @@
 // Store parsed events globally
 let parsedEvents = [];
+const storageKeys = {
+    syllabusText: "savedSyllabusText",
+    parsedEvents: "savedParsedEvents",
+};
 
 // Get DOM elements
 const syllabusInput = document.getElementById("syllabusInput");
@@ -12,6 +16,7 @@ const updateBtn = document.getElementById("updateBtn");
 const addToCalendarBtn = document.getElementById("addToCalendarBtn");
 const statusDiv = document.getElementById("status");
 const settingsLink = document.getElementById("settingsLink");
+let eventColorMapPromise = null;
 
 document.getElementById("settingsLink").addEventListener("click", (e) => {
     e.preventDefault();
@@ -20,15 +25,39 @@ document.getElementById("settingsLink").addEventListener("click", (e) => {
 
 // Load saved syllabus text when popup opens
 document.addEventListener("DOMContentLoaded", async () => {
-    const result = await chrome.storage.local.get(["savedSyllabusText"]);
-    if (result.savedSyllabusText) {
-        syllabusInput.value = result.savedSyllabusText;
+    const result = await chrome.storage.local.get([
+        storageKeys.syllabusText,
+        storageKeys.parsedEvents,
+    ]);
+
+    if (result[storageKeys.syllabusText]) {
+        syllabusInput.value = result[storageKeys.syllabusText];
+    }
+
+    if (
+        Array.isArray(result[storageKeys.parsedEvents]) &&
+        result[storageKeys.parsedEvents].length > 0
+    ) {
+        parsedEvents = result[storageKeys.parsedEvents];
+        displayEventPreview(parsedEvents);
+        preview.style.display = "block";
+        chatSection.style.display = "block";
     }
 });
 
 // Save syllabus text as user types
 syllabusInput.addEventListener("input", async () => {
-    await chrome.storage.local.set({ savedSyllabusText: syllabusInput.value });
+    await chrome.storage.local.set({
+        [storageKeys.syllabusText]: syllabusInput.value,
+    });
+
+    if (parsedEvents.length > 0) {
+        parsedEvents = [];
+        preview.style.display = "none";
+        chatSection.style.display = "none";
+        eventList.innerHTML = "";
+        await chrome.storage.local.remove(storageKeys.parsedEvents);
+    }
 });
 
 // Process button click
@@ -48,6 +77,9 @@ processBtn.addEventListener("click", async () => {
         // Call Groq API to parse syllabus
         const events = await parseSyllabusWithGroq(syllabusText);
         parsedEvents = events;
+        await chrome.storage.local.set({
+            [storageKeys.parsedEvents]: parsedEvents,
+        });
 
         // Display preview
         displayEventPreview(events);
@@ -56,7 +88,7 @@ processBtn.addEventListener("click", async () => {
 
         showStatus("Events parsed successfully!", "success");
     } catch (error) {
-        showStatus("Error parsing syllabus: " + error.message, "error");
+        showStatus("Error parsing syllabus", "error");
         console.error(error);
     } finally {
         processBtn.disabled = false;
@@ -84,6 +116,9 @@ updateBtn.addEventListener("click", async () => {
             parsedEvents,
         );
         parsedEvents = updatedEvents;
+        await chrome.storage.local.set({
+            [storageKeys.parsedEvents]: parsedEvents,
+        });
 
         displayEventPreview(updatedEvents);
         chatInput.value = "";
@@ -124,8 +159,13 @@ addToCalendarBtn.addEventListener("click", async () => {
         // Clear form after success
         setTimeout(() => {
             syllabusInput.value = "";
-            chrome.storage.local.remove("savedSyllabusText");
+            chrome.storage.local.remove([
+                storageKeys.syllabusText,
+                storageKeys.parsedEvents,
+            ]);
             preview.style.display = "none";
+            chatSection.style.display = "none";
+            eventList.innerHTML = "";
             parsedEvents = [];
         }, 2000);
     } catch (error) {
@@ -165,15 +205,40 @@ async function parseSyllabusWithGroq(syllabusText) {
                         content: `You are a syllabus parser. Extract calendar events from syllabi and return them as a JSON array.
 
 Each event should have:
-- eventType: one of "homework", "quiz", "exam", "project"
-- title: brief name of the assignment/event
+- eventType: one of "assignment", "quiz", "exam", "project, or other (if unidentifiable)"
+                        - If something does not clearly fit one of those categories, classify it as "other" only if it is still clearly a course event; otherwise skip it.
+- title: brief name of the assignment/event (if provided, use the exact name, do not infer)
 - description: additional details if available (optional, can be empty string)
 - dueDate: ISO 8601 format (YYYY-MM-DDTHH:MM:SS), use 23:59:59 as the end time for assignments without specific times. If no year is specified, assume the current year ${new Date().getFullYear()}.
 - startDate: ISO 8601 format (YYYY-MM-DDTHH:MM:SS), use 30 minutes before dueDate as a default
 - className: the course name/code from the syllabus
+- startDate: ONLY include this field if the syllabus explicitly gives a start date/time AND an end date/time for the event (e.g. "Project work period: Oct 1 - Oct 5" or "Exam window: 9:00 AM - 11:00 AM"). ISO 8601 format. Omit this field entirely if there's only a single deadline.
+- endDate: ONLY include this field if startDate is also included. ISO 8601 format.
+- Use the exact wording from the syllabus when possible for title and className.
 
-If there is no className, use a default of "Unknown Class." If there is not a specific eventType keyword, use your best judgment to categorize the event into one of the categories. 
-Return ONLY valid JSON with an "events" array, no markdown formatting or explanation.`,
+
+Return ONLY valid JSON with an "events" array, no markdown formatting or explanation.
+
+Output format:
+Return ONLY valid JSON with this structure:
+
+Here is an example:
+{
+  "events": [
+    {
+      "eventType": "homework | quiz | exam | project | other",
+      "title": "exact or near-exact assignment name from the syllabus",
+      "description": "short supporting details from the syllabus, or empty string",
+      "dueDate": "ISO 8601 datetime if clearly stated, otherwise empty string",
+      "startDate": "ISO 8601 datetime only if dueDate is known, otherwise empty string",
+      "className": "exact course name/code if clearly stated, otherwise 'Unknown Class'"
+    }
+  ]
+}
+
+
+
+`,
                     },
                     {
                         role: "user",
@@ -218,9 +283,15 @@ async function updateEventsWithChat(
                 messages: [
                     {
                         role: "system",
-                        content: `You are a syllabus parser. Update the event list based on user corrections.
+                        content: `You are updating a previously extracted syllabus event list.
 
-Return ONLY valid JSON with an "events" array in the same format as before.`,
+Rules:
+- Only modify events based on the user’s correction and the original syllabus text.
+- Do not invent new events.
+- Do not change dates, titles, event types, or classes unless the correction clearly requires it.
+- Preserve any event that is not directly affected by the correction.
+- If a correction is ambiguous, make the smallest possible change.
+`,
                     },
                     {
                         role: "user",
@@ -287,36 +358,28 @@ async function getGoogleAuthToken() {
 
 // Add event to Google Calendar
 async function addEventToGoogleCalendar(token, event) {
-    // Map event types to Google Calendar color IDs
-
-    //TODO: adjust here
-    const colorMap = {
-        homework: "2", // light green
-        quiz: "6", // orange
-        exam: "11", // Red
-        project: "3", // Grape
+    const hasRange = event.startDate && event.endDate;
+    const DEFAULT_COLORS = {
+        assignment: "2",
+        quiz: "6",
+        project: "3",
+        exam: "11",
+        other: "1",
     };
+
+    const stored = await chrome.storage.sync.get(["colorSettings"]);
+    const colorSettings = stored.colorSettings || {};
+    const colorId =
+        colorSettings[event.eventType] ||
+        DEFAULT_COLORS[event.eventType] ||
+        "1";
+
     const calendarEvent = {
         summary: event.title,
         description: `${event.className} - ${event.eventType}${
             event.description ? "\n\n" + event.description : ""
         }`,
-        //TODO: allow user to adjust if they want a full day or a time and due date here, or offer double functionality
-        start: {
-            // setting a full day event, which i prefer for my assignments
-            date: event.dueDate.split("T")[0], // Just "2024-09-15"
-
-            //setting specific time and due date
-            // dateTime: event.startDate,
-            // timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        },
-        end: {
-            date: event.dueDate.split("T")[0], // Just "2024-09-15"
-
-            // dateTime: event.dueDate,
-            // timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        },
-        colorId: colorMap[event.eventType] || "1",
+        colorId: colorId,
         reminders: {
             useDefault: false,
             overrides: [
@@ -327,6 +390,26 @@ async function addEventToGoogleCalendar(token, event) {
             ],
         },
     };
+
+    if (hasRange) {
+        // Timed event with a real start and end
+        calendarEvent.start = {
+            dateTime: event.startDate,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        };
+        calendarEvent.end = {
+            dateTime: event.endDate,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        };
+    } else {
+        // Full-day event
+        calendarEvent.start = {
+            date: event.dueDate.split("T")[0],
+        };
+        calendarEvent.end = {
+            date: event.dueDate.split("T")[0],
+        };
+    }
 
     const response = await fetch(
         "https://www.googleapis.com/calendar/v3/calendars/primary/events",
@@ -348,6 +431,28 @@ async function addEventToGoogleCalendar(token, event) {
     }
 
     return response.json();
+}
+
+async function getEventColorMap() {
+    if (!eventColorMapPromise) {
+        eventColorMapPromise = chrome.storage.sync.get([
+            "eventColorHomework",
+            "eventColorQuiz",
+            "eventColorExam",
+            "eventColorProject",
+            "eventColorOther",
+        ]);
+    }
+
+    const result = await eventColorMapPromise;
+
+    return {
+        homework: result.eventColorHomework || "2",
+        quiz: result.eventColorQuiz || "6",
+        exam: result.eventColorExam || "11",
+        project: result.eventColorProject || "3",
+        other: result.eventColorOther || "1",
+    };
 }
 
 // Show status message
